@@ -105,17 +105,22 @@ namespace std {
     };
 
     template<typename T, typename D = default_delete<T>>
-    void rcu_retire(T *p, D d = {})
+    void rcu_retire(std::unique_ptr<T, D> ptr)
     {
         typedef std::unique_ptr<T, D> ptr_type;
-        ptr_type ptr(p, std::move(d));
-
         struct rcu_obj_base_ni :
             public rcu_obj_base<rcu_obj_base_ni>,
             public ptr_type {
             rcu_obj_base_ni(ptr_type p) : ptr_type(std::move(p)) {}
         };
         (new rcu_obj_base_ni(std::move(ptr)))->retire();
+    }
+
+    template<typename T, typename D = default_delete<T>>
+    void rcu_retire(T *p, D d = {})
+    {
+        typedef std::unique_ptr<T, D> ptr_type;
+        rcu_retire(ptr_type(p, std::move(d)));
     }
 
 } // namespace std
