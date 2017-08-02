@@ -104,32 +104,18 @@ namespace std {
         }
     };
 
-    namespace details {
-	template<typename T, typename D = default_delete<T>>
-	class rcu_obj_base_ni: public rcu_head {
-	public:
-	    rcu_obj_base_ni(T *pi, D di = {}) {
-		p = pi;
-		d = di;
-	    }
-	    T *p;
-	    D d;
-	};
-    }
-
     template<typename T, typename D = default_delete<T>>
     void rcu_retire(T *p, D d = {})
     {
-	auto robnp = new details::rcu_obj_base_ni<T, D>(p, d);
+        typedef std::unique_ptr<T, D> ptr_type;
+        ptr_type ptr(p, std::move(d));
 
-	::call_rcu(
-	    static_cast<rcu_head *>(robnp),
-	    [](rcu_head *rhp) {
-		auto robnp2 = static_cast<details::rcu_obj_base_ni<T, D> *>(rhp);
-
-		robnp2->d(robnp2->p);
-		delete robnp2;
-	    });
+        struct rcu_obj_base_ni :
+            public rcu_obj_base<rcu_obj_base_ni>,
+            public ptr_type {
+            rcu_obj_base_ni(ptr_type p) : ptr_type(std::move(p)) {}
+        };
+        (new rcu_obj_base_ni(std::move(ptr)))->retire();
     }
 
 } // namespace std
